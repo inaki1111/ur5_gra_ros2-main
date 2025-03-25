@@ -1,0 +1,47 @@
+# ==========================================
+# Dockerfile for ROS 2 Jazzy + UR5
+# ==========================================
+
+# Base image: ROS 2 Jazzy
+FROM osrf/ros:jazzy-desktop-full
+
+# Install some ROS dependencies
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y \
+    python3-pip python3-venv \
+    ros-jazzy-ur-robot-driver ros-jazzy-ur-calibration \
+    ros-jazzy-librealsense2* \
+    ros-jazzy-realsense2-*
+
+# Install ONNX Runtime
+RUN pip3 install --no-cache-dir onnxruntime --break-system-packages
+
+# Set up workspace
+ENV ROS2_WS=/root/ros2_ws
+RUN mkdir -p $ROS2_WS/src
+
+# Clone repositories
+WORKDIR $ROS2_WS/src
+RUN date && git clone https://github.com/UniversalRobots/Universal_Robots_ROS2_GZ_Simulation.git
+RUN date && git clone https://gitlab.inria.fr/sed-ral/ur5_gra/ur5_robotiq_2f85.git
+RUN git clone https://github.com/inaki1111/reach.git
+
+# Install ROS dependencies
+RUN rosdep update && \
+    rosdep install --ignore-src --from-paths . -y && \
+    rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get upgrade -y
+
+# Build the workspace
+WORKDIR $ROS2_WS
+RUN /bin/bash -c "source /opt/ros/jazzy/setup.bash && colcon build --symlink-install"
+
+# Set up the user workspace directory
+RUN mkdir -p /root/ros2_ws/example
+WORKDIR /root/ros2_ws/example
+VOLUME /root/ros2_ws/example
+
+# Source the setup files in .bashrc
+RUN echo "source /opt/ros/jazzy/setup.bash" >> /root/.bashrc
+RUN echo "source /root/ros2_ws/install/setup.bash" >> /root/.bashrc
+RUN echo "export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST" >> /root/.bashrc
